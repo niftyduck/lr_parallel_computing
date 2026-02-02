@@ -5,11 +5,13 @@ LM = -lm
 
 SEQ = sequential
 OMP = omp
+MPI = mpi
 
 SRC_SEQ = lr_sequential.c
 SRC_OMP = lr_omp.c
+SRC_MPI = lr_mpi.c
 
-EXECUTABLES = $(SEQ) $(OMP)
+EXECUTABLES = $(SEQ) $(OMP) $(MPI)
 
 all: $(EXECUTABLES) list
 
@@ -18,6 +20,9 @@ $(SEQ): $(SRC_SEQ)
 
 $(OMP): $(SRC_OMP)
 	$(CC) $(CFLAGS) $(OMPFLAGS) $(SRC_OMP) -o $(OMP) $(LM)
+
+$(MPI): $(SRC_MPI)
+	mpicc $(CFLAGS) $(SRC_MPI) -o $(MPI) $(LM)
 
 list:
 	@echo "\nChoose one executable between these:"
