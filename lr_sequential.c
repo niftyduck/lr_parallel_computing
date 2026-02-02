@@ -214,6 +214,93 @@ double* gaussian_elimination(double** XTX, double* XTy) {
     return beta;
 }
 
+void validate_results(double* true_beta, double* computed_beta) {
+    printf("\n=== NUMERICAL STABILITY ANALYSIS ===\n");
+    
+    double max_error = 0.0;
+    double total_error = 0.0;
+    double relative_error_sum = 0.0;
+    
+    printf("\nCoefficient Comparison (first 10):\n");
+    printf("%-6s %-12s %-12s %-12s %-12s\n", 
+           "Index", "True", "Computed", "Abs Error", "Rel Error");
+    printf("---------------------------------------------------------------\n");
+    
+    int show = (m_features < 10) ? m_features : 10;
+    for (int i = 0; i < show; i++) {
+        double abs_error = fabs(true_beta[i] - computed_beta[i]);
+        double rel_error = (fabs(true_beta[i]) > 1e-10) ? 
+                           (abs_error / fabs(true_beta[i])) : 0.0;
+        
+        printf("%-6d %12.8f %12.8f %12.8f %12.6f%%\n", 
+               i, true_beta[i], computed_beta[i], abs_error, rel_error * 100);
+        
+        if (abs_error > max_error) max_error = abs_error;
+        total_error += abs_error;
+        relative_error_sum += rel_error;
+    }
+    
+    // Compute errors for each coefficient
+    for (int i = show; i < m_features; i++) {
+        double abs_error = fabs(true_beta[i] - computed_beta[i]);
+        double rel_error = (fabs(true_beta[i]) > 1e-10) ? 
+                           (abs_error / fabs(true_beta[i])) : 0.0;
+        
+        if (abs_error > max_error) max_error = abs_error;
+        total_error += abs_error;
+        relative_error_sum += rel_error;
+    }
+    
+    if (m_features > 10) {
+        printf("... (%d more coefficients)\n", m_features - 10);
+    }
+    
+    double avg_abs_error = total_error / m_features;
+    double avg_rel_error = relative_error_sum / m_features;
+    
+    printf("\n--- Error Statistics ---\n");
+    printf("Maximum absolute error:  %.10e\n", max_error);
+    printf("Average absolute error:  %.10e\n", avg_abs_error);
+    printf("Average relative error:  %.6f%%\n", avg_rel_error * 100);
+    
+    // Compute the norm of the error
+    double error_norm = 0.0;
+    double true_norm = 0.0;
+    for (int i = 0; i < m_features; i++) {
+        double diff = true_beta[i] - computed_beta[i];
+        error_norm += diff * diff;
+        true_norm += true_beta[i] * true_beta[i];
+    }
+    error_norm = sqrt(error_norm);
+    true_norm = sqrt(true_norm);
+    double normalized_error = error_norm / true_norm;
+    
+    printf("L2 norm of error:        %.10e\n", error_norm);
+    printf("Normalized error:        %.10e\n", normalized_error);
+    
+    printf("\n--- Quality Assessment ---\n");
+    if (max_error < 1e-6) {
+        printf("✓ EXCELLENT: Very high precision (error < 1e-6)\n");
+    } else if (max_error < 1e-4) {
+        printf("✓ GOOD: High precision (error < 1e-4)\n");
+    } else if (max_error < 1e-2) {
+        printf("⚠ ACCEPTABLE: Moderate precision (error < 1e-2)\n");
+    } else if (max_error < 1.0) {
+        printf("⚠ WARNING: Low precision (error < 1.0)\n");
+    } else {
+        printf("✗ POOR: Very low precision (error >= 1.0)\n");
+        printf("   Check for numerical instability or implementation errors.\n");
+    }
+    
+    // Check per ill-conditioned matrix
+    if (avg_rel_error > 0.01) {
+        printf("⚠ Note: Relatively high errors may indicate:\n");
+        printf("   - Ill-conditioned matrix (X^T X)\n");
+        printf("   - Need for regularization\n");
+        printf("   - Numerical precision limitations\n");
+    }
+}
+
 void free_matrix_X(double **X) {
     for (int i = 0; i < n_samples; i++)
         free(X[i]);
@@ -244,7 +331,7 @@ int main(int argc, char* argv[]) {
     /// Step 2: generate randomly the true_beta array[m] and the matrix X[n,m]
     double *true_beta = malloc(sizeof(double)*m_features);
     fill_real_beta(true_beta);
-    print_beta(true_beta);
+    //print_beta(true_beta);
 
     double **X = generate_matrix_X();
     print_matrix_X(X);
@@ -266,24 +353,58 @@ int main(int argc, char* argv[]) {
         - Output: computed_beta
     */
 
+    printf("\n=== PERFORMANCE MEASUREMENT === \n");
+    clock_t total_start = clock();
+
     /// Step 4: compute XTX and XTy
+    printf("\nComputing X^T X...\n");
+    clock_t xtx_start = clock();
     double** XTX = compute_XTX(X);
-    double*  XTy = compute_XTy(X, y);
+    clock_t xtx_end = clock();
+    double time_xtx = ((double)(xtx_end - xtx_start)) / CLOCKS_PER_SEC;
+
+    printf("Computing X^T y...\n");
+    clock_t xty_start = clock();
+    double* XTy = compute_XTy(X, y);
+    clock_t xty_end = clock();
+    double time_xty = ((double)(xty_end - xty_start)) / CLOCKS_PER_SEC;
 
     /// Step 5: extrapolate computed_beta -> Gaussian Elimination
+    printf("\nSolving linear system...\n");
+    clock_t gauss_start = clock();
     double* computed_beta = gaussian_elimination(XTX, XTy);
-    print_beta(computed_beta);
+    clock_t gauss_end = clock();
+    double time_gauss = ((double)(gauss_end - gauss_start)) / CLOCKS_PER_SEC;
 
-    /// Step 6: validate and report information
+    clock_t total_end = clock();
+    double time_total = ((double)(total_end - total_start)) / CLOCKS_PER_SEC;
+
+    /// Step 6: report performance
+    printf("\n=== PERFORMANCE RESULTS ===\n");
+    printf("Dataset: n=%d samples, m=%d features\n", n_samples, m_features);
+    printf("Time for X^T X:           %.6f seconds (%.2f%%)\n", 
+           time_xtx, (time_xtx/time_total)*100);
+    printf("Time for X^T y:           %.6f seconds (%.2f%%)\n", 
+           time_xty, (time_xty/time_total)*100);
+    printf("Time for Gaussian Elim:   %.6f seconds (%.2f%%)\n", 
+           time_gauss, (time_gauss/time_total)*100);
+    printf("----------------------------------------\n");
+    printf("TOTAL TIME:               %.6f seconds\n", time_total);
     
-
-
-
-
-    /// Final step: cleanup
+    /// Step 7: validate
+    validate_results(true_beta, computed_beta);
+    
+    /// Final cleanup
     free(true_beta);
+    free(computed_beta);
     free_matrix_X(X);
     free(y);
+
+    for(int i = 0; i < m_features; i++)
+        free(XTX[i]);
+
+    free(XTX);
+    free(XTy);
 
     return 0;
 }
