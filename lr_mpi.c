@@ -12,7 +12,7 @@ void print_args(){
 }
 
 void generate_true_beta(double* true_beta) {
-    srand(42);
+    srand(10);
     for (int i = 0; i < m_features; i++) 
         true_beta[i] = ((double)rand() / RAND_MAX) * 4.0 - 2.0;
 }
@@ -96,6 +96,7 @@ double** compute_XTX(double** X, int start_row, int end_row,
     for (int i = 0; i < m_features; i++) {
         for (int j = 0; j < m_features; j++) {
             local_XTX[i][j] = 0.0;
+            // Same as sequential, but each process has its own group of cells
             for (int k = start_row; k < end_row; k++) 
                 local_XTX[i][j] += X[k][i] * X[k][j];
         }
@@ -103,7 +104,7 @@ double** compute_XTX(double** X, int start_row, int end_row,
     
     // REDUCE: sum all local contributes
     double **global_XTX = NULL;
-    if (rank == 0) {
+    if (rank == 0) { // Only root process has the final result
         global_XTX = malloc(m_features * sizeof(double*));
         for (int i = 0; i < m_features; i++) 
             global_XTX[i] = malloc(m_features * sizeof(double));
@@ -374,6 +375,13 @@ int main(int argc, char* argv[]) {
     /// Step 1: get arguments from terminal
     n_samples = atoi(argv[1]);
     m_features = atoi(argv[2]);
+    if(rank == 0) {
+        if(n_samples <= 0 || m_features <= 0){
+            printf("n_samples and n_features must be larger than 0!\n");
+            return -1;
+        }
+        print_args();
+    }   
 
     /// Step 2: generate true_beta[m] and X[n][m]
     double *true_beta = malloc(m_features*sizeof(double));
@@ -387,14 +395,10 @@ int main(int argc, char* argv[]) {
     // Before going into step 4, we decide which process takes which portion of data
     int local_n = n_samples/size;
     int start_row = rank*local_n;
-    int end_row;
-    if(rank == size - 1) end_row = n_samples;
-    else end_row = start_row + local_n;
-
+    int end_row = (rank == size - 1) ? n_samples : start_row + local_n;
     local_n = end_row - start_row;
 
     if (rank == 0) {
-        print_args();
         print_beta(true_beta);
         print_matrix_X(X);
         print_vector_y(y);

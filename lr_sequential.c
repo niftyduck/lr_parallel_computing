@@ -10,12 +10,12 @@ void print_args(){
 }
 
 void generate_true_beta(double* true_beta) {
-    srand(42);
+    srand(10);
     for (int i = 0; i < m_features; i++) 
-        true_beta[i] = ((double)rand() / RAND_MAX) * 4.0 - 2.0;
+        true_beta[i] = ((double)rand() / RAND_MAX) * 4.0 - 2.0; // [-2,2]
 }
 
-void print_beta(double* true_beta){
+void print_beta(double* true_beta) {
     int elems_to_show = (m_features < 5) ? m_features : 5;
     printf("\nFirst %d elements of true_beta: \n[  ", elems_to_show);
     for (int i = 0; i < elems_to_show; i++) 
@@ -26,13 +26,13 @@ void print_beta(double* true_beta){
 }
 
 double** generate_matrix_X() {
-    double **X = malloc(n_samples*sizeof(double*)); // Allocate rows
-    for(int i = 0; i < n_samples; i++) // For each row, allocate columns 
+    double **X = malloc(n_samples*sizeof(double*));
+    for(int i = 0; i < n_samples; i++)
         X[i] = malloc(m_features*sizeof(double));   
 
-    for (int i = 0; i < n_samples; i++) { // Fill with random values (from 0 to 10)
+    for (int i = 0; i < n_samples; i++) { // Fill with random values
         for (int j = 0; j < m_features; j++) 
-            X[i][j] = ((double)rand() / RAND_MAX) * 10.0;
+            X[i][j] = ((double)rand() / RAND_MAX) * 10.0; // [0,10]
     }
     return X;
 }
@@ -60,8 +60,8 @@ double* generate_vector_y(double **X, double *true_beta){
     double *y = malloc(n_samples*sizeof(double));
     for(int i = 0; i < n_samples; i++){
         y[i] = 0.0;
-
-        // Dot product X * true_beta
+        
+        // X * true_beta summed into the cell i of y
         for(int j = 0; j < m_features; j++)
             y[i] += X[i][j]*true_beta[j];
         
@@ -84,14 +84,15 @@ void print_vector_y(double *y) {
         printf("    ... (%d more values)\n", n_samples - 10);
 }
 
-double** compute_XTX(double** X){
+double** compute_XTX(double** X) {
+    // XTX is of dimension m*m
     double** XTX = malloc(m_features * sizeof(double*));
     for(int i = 0; i < m_features; i++) 
         XTX[i] = malloc(m_features * sizeof(double));
 
     for(int i = 0; i < m_features; i++){
         for(int j = 0; j < m_features; j++){
-            XTX[i][j] = 0.0;  
+            XTX[i][j] = 0.0;
             for(int k = 0; k < n_samples; k++)
                 XTX[i][j] += X[k][i] * X[k][j];
         }
@@ -111,13 +112,15 @@ double* compute_XTy(double** X, double* y){
 
 // Transforms the system in superior triangular
 void forward_elimination(double** A, double* b) {
+    /*Objective: for each column i, make 0 every
+    element under A[i][i]*/
+
     // For every column (except the last one)
     for (int i = 0; i < m_features - 1; i++) { 
-        
         // PARTIAL PIVOTING: find the row with maximum pivot
         int max_row = i;
-        for (int k = i + 1; k < m_features; k++) {
-            if (fabs(A[k][i]) > fabs(A[max_row][i])) 
+        for(int k = i + 1; k < m_features; k++) {
+            if ( fabs(A[k][i]) > fabs(A[max_row][i]))
                 max_row = k;
         }
         
@@ -136,7 +139,7 @@ void forward_elimination(double** A, double* b) {
         if (fabs(A[i][i]) < 1e-10) {
             printf("Error: Matrix is singular or nearly singular at row %d!\n", i);
             return;
-        }
+        } 
         
         // Elimination
         for (int k = i + 1; k < m_features; k++) {
@@ -169,9 +172,8 @@ double* back_substitution(double** A, double* b) {
         double sum = 0.0;
         
         // Subtract the contributes of already-solved variables
-        for (int j = i + 1; j < m_features; j++) {
+        for (int j = i + 1; j < m_features; j++) 
             sum += A[i][j] * beta[j];
-        }
         
         // Solve for beta[i]
         if (fabs(A[i][i]) < 1e-10) {
@@ -184,7 +186,6 @@ double* back_substitution(double** A, double* b) {
     
     return beta;
 }
-
 
 double* gaussian_elimination(double** XTX, double* XTy) {
     // We first copy matrix X (A) and vector y (b) to perform
@@ -303,27 +304,30 @@ void free_matrix_X(double **X) {
 
 int main(int argc, char* argv[]) {
     if(argc < 3 || argc > 3) {
-        printf("\nYou must enter arguments: <n_samples> <m_features>!\n");
+        printf("\nYou must enter arguments: <n_samples> <m_features>\n");
         return -1;   
     }
 
     /// Step 1: get arguments from terminal
     n_samples = atoi(argv[1]);
     m_features = atoi(argv[2]);
+    if(n_samples <= 0 || m_features <= 0){
+        printf("n_samples and n_features must be larger than 0!\n");
+        return -1;
+    }
     print_args();
 
     /// Step 2: generate true_beta[m] and X[n][m]
     double *true_beta = malloc(m_features*sizeof(double));
     generate_true_beta(true_beta);
     double **X = generate_matrix_X();
-    
     print_beta(true_beta);
     print_matrix_X(X);
     
     /// Step 3: compute y = X * true_beta + noise 
     double* y = generate_vector_y(X, true_beta);
     print_vector_y(y);
-
+    
     /// Step 4: compute XTX and XTy
     clock_t total_start = clock();
 
@@ -343,7 +347,7 @@ int main(int argc, char* argv[]) {
     clock_t gauss_start = clock();
 
     double* computed_beta = gaussian_elimination(XTX, XTy);
-
+    
     clock_t gauss_end = clock();
     double time_gauss = ((double)(gauss_end - gauss_start)) / CLOCKS_PER_SEC;
     clock_t total_end = clock();

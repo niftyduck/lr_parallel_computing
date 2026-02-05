@@ -11,7 +11,7 @@ void print_args(){
 }
 
 void generate_true_beta(double* true_beta) {
-    srand(42);
+    srand(10);
     for (int i = 0; i < m_features; i++) 
         true_beta[i] = ((double)rand() / RAND_MAX) * 4.0 - 2.0;
 }
@@ -90,10 +90,10 @@ double** compute_XTX(double** X){
     for(int i = 0; i < m_features; i++) 
         XTX[i] = malloc(m_features * sizeof(double));
 
-
-    #pragma omp parallel for collapse(2) schedule(dynamic) //** 
-    for(int i = 0; i < m_features; i++){
-        for(int j = 0; j < m_features; j++){
+    
+    #pragma omp parallel for collapse(2) schedule(static)
+    for(int i = 0; i < m_features; i++) {
+        for(int j = 0; j < m_features; j++) {
             double sum = 0.0; // *
             for(int k = 0; k < n_samples; k++)
                 sum += X[k][i] * X[k][j];
@@ -104,7 +104,6 @@ double** compute_XTX(double** X){
 }
 
 // *sum is added because XTX is shared. XTX[i][j] += ... would be a race condition 
-// **schedule(dynamic) checks that iterations of a loop are assigned to threads. With schedule(dynamic), load is balanced between threads (i.e. if a thread has finished, it goes to another block)
 
 double* compute_XTy(double** X, double* y){
     double* XTy = malloc(m_features * sizeof(double));
@@ -118,7 +117,6 @@ double* compute_XTy(double** X, double* y){
     }
     return XTy;
 }
-
 
 // Transforms the system in superior triangular
 void forward_elimination(double** A, double* b) {
@@ -322,6 +320,10 @@ int main(int argc, char* argv[]) {
     m_features = atoi(argv[2]);
     k_threads = atoi(argv[3]);
     omp_set_num_threads(k_threads);
+    if(n_samples <= 0 || m_features <= 0 || k_threads <= 0){
+        printf("n_samples, n_features and k_threads must be larger than 0!\n");
+        return -1;
+    }
     print_args();
     
     /// Step 2: generate true_beta[m] and X[n][m]
@@ -336,7 +338,6 @@ int main(int argc, char* argv[]) {
     double* y = generate_vector_y(X, true_beta);
     print_vector_y(y);
 
-    
     /// Step 4: compute XTX and XTy 
     // [=== THIS PART IS PARALLELIZED ===]
     double total_start = omp_get_wtime();
@@ -384,9 +385,9 @@ int main(int argc, char* argv[]) {
 
     for(int i = 0; i < m_features; i++)
         free(XTX[i]);
-
+    
     free(XTX);
     free(XTy);
-
+        
     return 0;
 }
