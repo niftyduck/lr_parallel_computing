@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O2 -Wall -Wextra
+CFLAGS = -pg -O2 -Wall -Wextra
 OMPFLAGS = -fopenmp
 LM = -lm
 
