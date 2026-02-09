@@ -89,7 +89,7 @@ double** compute_XTX(double** X) {
     double** XTX = malloc(m_features * sizeof(double*));
     for(int i = 0; i < m_features; i++) 
         XTX[i] = malloc(m_features * sizeof(double));
-
+    
     for(int i = 0; i < m_features; i++){
         for(int j = 0; j < m_features; j++){
             XTX[i][j] = 0.0;

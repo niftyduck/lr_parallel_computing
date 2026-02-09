@@ -113,7 +113,7 @@ double** compute_XTX(double** X, int start_row, int end_row,
     // Flatten for MPI
     double *local_flat = malloc(m_features * m_features * sizeof(double));
     double *global_flat = NULL;
-    if (rank == 0) 
+    if (rank == 0)
         global_flat = malloc(m_features * m_features * sizeof(double));
     
     // Flatten local_XTX
